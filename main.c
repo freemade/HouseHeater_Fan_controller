@@ -42,6 +42,7 @@ uint8_t g_rx_message[100];
 float TC_Temperature;
 
 struct T_SOLARFOKUS_SLAVE_MSG sf_slave_msg;
+struct T_SOLARFOKUS_MASTER_MSG sf_master_msg;
 
 void SysTickIntHandler(void)    // led blinking
 {
@@ -64,7 +65,8 @@ void SysTickIntHandler(void)    // led blinking
     if(ms_tick_counter == 100)
     {
         ms_tick_counter = 0;
-        g_tick_1s = true;
+//        g_tick_1s = true; // TODO: enable later..
+
 //      GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, GPIO_PIN_2);
 //      SysCtlDelay(MAP_SysCtlClockGet() / (10000 * 3));    // Delay for 0,1 millisecond.  Each SysCtlDelay is about 3 clocks.
 //      GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
@@ -82,15 +84,66 @@ void UART0IntHandler(void) // debug UART
     uint32_t ui32_rx_char;
     uint32_t i;
     uint8_t tx_buffer[80];
+
+    static uint8_t rx_char[100];
+    static uint8_t char_cnt = 0; // count the amount of chars of one message
+    static uint8_t message_state = 0;
+
     // Get the interrrupt status.
     ui32Status = MAP_UARTIntStatus (UART0_BASE, true);
     // Clear the asserted interrupts.
     MAP_UARTIntClear (UART0_BASE, ui32Status);
     // Loop while there are characters in the receive FIFO.
-    while (MAP_UARTCharsAvail (UART0_BASE))
-    {
-        // Read the next character from the UART and write it back to the UART.
-        ui32_rx_char = MAP_UARTCharGetNonBlocking (UART0_BASE);
+        while (MAP_UARTCharsAvail (UART0_BASE))// Loop while there are characters in the receive FIFO.
+        {
+            rx_char[char_cnt] = (uint8_t)MAP_UARTCharGetNonBlocking (UART0_BASE);// Read the next character from the UART and write it back to the UART.
+
+            switch (message_state)
+            {
+            case 0:
+                if ( rx_char[0] == 0x02)   // start of message -> go to next state
+                {
+                    message_state = 1;
+                    ++char_cnt;
+                }
+                break;
+            case 1:
+                if ( rx_char[1] == 0x02)   // start of message -> go to next state
+                {
+                    message_state = 2;
+                    ++char_cnt;
+                }
+                else
+                {
+                    message_state = 0;
+                    char_cnt = 0;
+                }
+                break;
+            case 2:
+                if ( rx_char[2] == 0x3A)   // message lenght start with address to end -> go to next state
+                {
+                    message_state = 3;
+                    ++char_cnt;
+                }
+                else
+                {
+                    message_state = 0;
+                    char_cnt = 0;
+                }
+                break;
+            case 3:
+                ++char_cnt;
+                if (char_cnt == 0x3A -3)   // check if length is 3A-3 (02 02 3A) ->message finish
+                {
+                    char_cnt = 0;
+                    message_state = 0;
+                    strncpy((char*)g_rx_message, (const char*)rx_char, 0x3A);  // copy message into global buffer
+
+                }
+                break;
+            }
+        }// while
+
 //        if ( ui32_rx_char == 'r') // read the buffer
 //        {
 //            UARTSend((uint8_t *)"s1_vl\ts2_vl\tbu_o\tbu_u\r\n", 23);
@@ -108,7 +161,7 @@ void UART0IntHandler(void) // debug UART
 //      SysCtlDelay(MAP_SysCtlClockGet() / (1000 * 3));
         // Turn off the LED
 //      GPIOPinWrite(GPIO_PORTF_BASE, GPIO_PIN_2, 0);
-    }
+//    }
 }
 
 void UART1IntHandler(void)// Solarfocus RS485
@@ -304,9 +357,28 @@ int main(void)
         if (g_rx_message[0] == 0x02)    // we got a message from solarfocus
         {
             // TODO: do something with the new information
+            if (g_rx_message[3] == 0x10)    // we got a slave message
+            {
+                sf_slave_msg.start_byte =               g_rx_message[0];
+                sf_slave_msg.lenght =                   g_rx_message[2];
+                sf_slave_msg.address =                  g_rx_message[3];
+
+                sf_slave_msg.exhaust_gas_tmp.byte.H =   g_rx_message[12];   // not checked
+                sf_slave_msg.exhaust_gas_tmp.byte.L =   g_rx_message[13];
+
+                sf_slave_msg.kessel_tmp.byte.H =        g_rx_message[14];   // not checked
+                sf_slave_msg.kessel_tmp.byte.L =        g_rx_message[15];
+            }
+            else if (g_rx_message[2] == 0x11) // we got a master message
+            {
+                sf_master_msg.start_byte =   g_rx_message[0];
+                sf_master_msg.lenght =       g_rx_message[1];
+                sf_master_msg.address =      g_rx_message[2];
+                sf_master_msg.fan =         g_rx_message[12];   // 94=on 0=0ff
+            }
             g_rx_message[0] = 0;    // clear message information
-//            strncpy(sf_slave_msg, (const char*)g_rx_message, 0x3A); // try to copy the array to the struct
         }
+
         if( g_tick_1s == true)
         {
             g_tick_1s = false;

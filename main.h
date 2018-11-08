@@ -41,7 +41,7 @@ typedef struct T_SOLARFOKUS_SLAVE_MSG
     uint8_t start_byte;     // 1 always 0x02
     uint8_t byte_2;         // 2 if 0x02 msg is from slave; if not 0x02 or 0x00 msg is from master
     uint8_t lenght;         // 3 massage lenght
-    uint8_t reciver_id;     // 4 reciver address ID 0x11=Motherboard 13=Solar1 14=solar2 17=Frischwasserz
+    uint8_t address;     // 4 reciver address ID 0x11=Motherboard 13=Solar1 14=solar2 17=Frischwasserz
     uint8_t byte_5;             // 5 same as byte4 of master massage
     uint8_t byte_6;             // 6 always 0x80
     uint8_t byte_7;             // 7 same as byte5 om master massage
@@ -136,5 +136,24 @@ typedef struct T_SOLARFOKUS_SLAVE_MSG
     uint8_t byte_60;        // 60
 
 }slave_message;
+
+typedef struct T_SOLARFOKUS_MASTER_MSG
+{
+    uint8_t start_byte;     // 1 always 0x02
+    uint8_t lenght;         // 3 massage lenght
+    uint8_t address;     // 4 reciver address ID 0x11=Motherboard 13=Solar1 14=solar2 17=Frischwasserz
+    uint8_t msg_cnt;             // 5 same as byte4 of master massage
+    uint8_t byte_5;             // 5 same as byte4 of master massage
+    uint8_t byte_6;             // 6 always 0x80
+    uint8_t byte_7;             // 7 same as byte5 om master massage
+    uint8_t byte_8;             // 8
+    uint8_t byte_9;             // 9
+    uint8_t byte_10;            // 10
+    uint8_t byte_11;            // 11
+    uint8_t fan;                // 12   Lüfter 94=ON 0=OFF
+    uint8_t byte_13;            // 13
+    uint8_t byte_14;            // 14
+    uint8_t byte_15;            // 15
+}master_message;
 
 #endif /* MAIN_H_ */
